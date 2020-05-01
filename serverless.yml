@@ -1,0 +1,57 @@
+service: api-zapier
+org: personal
+
+provider:
+  stage: ${opt:stage}
+  name: aws
+  runtime: nodejs12.x
+  #versionFunctions: false
+  environment:
+    ACTIONSTABLENAME: ${self:custom.actionsTableName}
+    SNSPREFIX: ${self:custom.snsPrefix}
+    SUPPORTEDMODULES: joints
+  role: arn:aws:iam::691394038608:role/api-role
+  region: eu-west-1
+
+functions:
+  publisher:
+    handler: lambda.handler
+    memorySize: 128
+    timeout: 3
+    events:
+      - http:
+          path: /
+          method: post
+          cors: true
+  joints:
+    handler: handlers/joints/index.handler
+    memorySize: 128
+    timeout: 3
+    events:
+      - sns: ${self:custom.snsPrefix}-joints
+
+resources: # CloudFormation template syntax from here on.
+  Resources:
+    actionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.actionsTableName}
+        AttributeDefinitions:
+          - AttributeName: type
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: N
+        KeySchema:
+          - AttributeName: type
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+custom:
+  stages:
+    - dev
+  actionsTableName: actions_${self:provider.stage}
+  snsPrefix: zapier-command-${self:provider.stage}
